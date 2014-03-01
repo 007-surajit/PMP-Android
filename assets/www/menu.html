@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Welcome to our site</title>
+    
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, maximum-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+	<meta name="format-detection" content="telephone=no">
+    
+	<!--<link href="css/jquery.mobile.custom/jquery.mobile.custom.structure.css" rel="stylesheet" type="text/css" />
+	<link href="css/jquery.mobile.custom/jquery.mobile.custom.theme.css" rel="stylesheet" type="text/css" />-->
+	<link rel="stylesheet" href="css/jquery.mobile.structure.min.css" />
+	<link rel="stylesheet" href="css/jquery.mobile.theme.min.css" />
+    
+    <link href="css/grid.css" rel="stylesheet" type="text/css" />
+	<link href="css/base.css" rel="stylesheet" type="text/css" />
+	<link href="css/style.css" rel="stylesheet" type="text/css" />
+		
+	<script src="phonegap.js"></script>
+	<script src="js/WaitingDialog.js"></script>
+	<script src="js/softkeyboard.js"></script>
+	<script type="text/javascript" charset="utf-8" src="keychain.js"></script>
+	<script src="js/jquery.js"></script>	
+	<script src="js/html5.js"></script>
+	<script src="js/jquery.mobile.js"></script>
+	<script src="js/moment.min.js"></script>
+	<script src="js/iscroll.js"></script>	
+    <script src="js/custom.js"></script>
+	<script>
+	document.addEventListener("deviceready", onDeviceReady,false);
+	</script>
+</head>
+
+<body>
+<div data-role="page" id="menu">
+<!--header-->
+<div class="container header1">
+    <div class="row-fluid">
+	   <div class="span10 offset1 logo">
+	   		<img src="images/logo.png" alt="">
+	   </div>
+   </div>
+</div>
+<!--content area-->
+<div class="container contentarea1 menu">    
+   <div class="row-fluid"><div onClick="goTo('delivery_audit')" class="span10 offset1 menu_bg"><a data-role="none" href="#">Delivery Audit</a></div></div>
+   <div class="row-fluid"><div onClick="goTo('Query')" class="span10 offset1 menu_bg"><a data-role="none" href="#">Query Inbox</a></div></div>
+   <div class="row-fluid"><div onClick="goTo('Outstandingjob')" class="span10 offset1 menu_bg"><a data-role="none" href="#">Outstanding Jobs</a></div></div>
+   <div class="row-fluid">	
+	   <div class="span6 offset3 menu_bg">
+	   		<div class="row-fluid">
+	  			<div onClick="goTo('settings')" class="span12 settings menu_bg2"><img class="menu_icon1" src="images/menu_icon1.png" alt=""> <a data-role="none" href="#">Settings</a></div>
+			</div>
+	   </div>	   
+   </div>
+   <div class="row-fluid">	
+	   <div class="span6 offset3 menu_bg menu_bg_black">
+	   		<div class="row-fluid">
+	  			<div onClick="logout()" class="span12 settings menu_bg2"><img class="menu_icon2" src="images/menu_icon2.png" alt=""> <a data-role="none" href="#">Log out</a></div>
+			</div>
+	   </div>	   
+   </div>
+</div>
+</div>
+
+<!--Loader-->
+<div id="loader" style="display:none;">
+  <div id="custom" style="width:100%;text-align:center;vertical-align:middle;">  		 	
+		<img src="images/loadinfo.gif"/>	  
+  </div>
+</div>
+</body>
+</html>
