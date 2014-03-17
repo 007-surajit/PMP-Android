@@ -39,7 +39,7 @@ public class WaitingDialog extends CordovaPlugin {
 			getLocation(callbackContext);
 			//callbackContext.success();
 			return true;			
-		}else if ("ringtone".equals(action)) {
+		}else if ("ringtone".equals(action)) {			
 			playRingtone();
 			callbackContext.success();
 			return true;
@@ -64,14 +64,6 @@ public class WaitingDialog extends CordovaPlugin {
 		}
 	}
 	
-	/*public void playRingtone() {
-		
-		try {
-	        Uri notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-	        Ringtone r = RingtoneManager.getRingtone(this.cordova.getActivity().getApplicationContext(), notification);
-	        r.play();
-	    } catch (Exception e) {}
-	}*/
 	public void playRingtone() {
 		//Toast.makeText(this.cordova.getActivity().getApplicationContext(), "playRingtone method calling", Toast.LENGTH_LONG).show();
 		try {

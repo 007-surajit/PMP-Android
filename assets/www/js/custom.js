@@ -20,6 +20,9 @@ var submitDeliveryChecksCron = false;
 var submitQueriesCron = false;
 var submitJobsCron = false;
 var jobSubmitData = "";
+var unSubmittedJobs = [];
+var demo_service_url = "https://support.mobiliseit.com/PMP/PDAservice.asmx/";
+var live_service_url = "http://pmp.mobiliseit.com/PMPWS/Pdaservice.asmx/";
 
 function fnScroll(container)
 {
@@ -78,16 +81,16 @@ function popUp(dt,cw,cont_nr,dist_nr,area_cd,dist_net_cd)
 
 function showLoader()
 {
-	
-	/*var d1 = document.getElementsByTagName('body')[0];
+	/*
+	var d1 = document.getElementsByTagName('body')[0];
     var d2 = document.getElementById('loader');	
 	if(document.getElementById('loaderOverlay') == null) {
 		d1.insertAdjacentHTML('afterend', '<div id="loaderOverlay">'+d2.innerHTML+'</div>');
 	}else{
 		document.getElementById('loaderOverlay').style.display='block';
 	}
-	$("#loaderOverlay #custom").css("marginTop",window.innerHeight/3);*/
-	
+	$("#loaderOverlay #custom").css("marginTop",window.innerHeight/3);
+	*/
 	//navigator.notification.activityStart('','Please wait...');
 	// show dialog
 	//alert(window.plugins.waitingDialog);
@@ -157,7 +160,7 @@ function markJobAsComplete()
 	//console.log(UTCstring);
     jobSubmitData = new outstandingJobObject(localStorage.getItem("JOB_CONT_NR"),localStorage.getItem("JOB_CONT_INV_NR"),localStorage.getItem("JOB_DEL_TERR_CD"),localStorage.getItem("JOB_DIST_NR"),(new Date()).toUTCString(),localStorage.getItem("JOB_AREA_CD"),localStorage.getItem("JOB_DIST_NET_CD"));
     $.ajax({
-           url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/markCompleted",
+           url: live_service_url+"markCompleted",
            type: "POST",
            timeout: 60000 ,
            data: jobSubmitData,
@@ -235,6 +238,7 @@ function submitSavedJobs(tx, results) {
     console.log("JOBSUBMIT table: " + len + " rows found.");
 	if(len > 0) {
 		submittedJobs = [];
+		unSubmittedJobs = [];
 	    startSubmittingJobs(results,0);
 	}else if( len == 0){
 		// table exists but no records found
@@ -248,7 +252,7 @@ function startSubmittingJobs(results,counter)
 		jobSubmitData = new outstandingJobObject(results.rows.item(counter).cont_nr, results.rows.item(counter).cont_inv_nr, results.rows.item(counter).del_terr_cd, results.rows.item(counter).dist_nr,results.rows.item(counter).utcTime,results.rows.item(counter).area_cd,results.rows.item(counter).dist_net_cd);
 		//console.log(tempObj);
 		$.ajax({
-               url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/markCompleted",
+               url: live_service_url+"markCompleted",
                type: "POST",
                timeout: 60000 ,
                data: jobSubmitData,
@@ -259,7 +263,8 @@ function startSubmittingJobs(results,counter)
                },
                error: function(jqXHR, textStatus, errorThrown)
                {
-               submittedJobs.push(jobSubmitData);
+               //submittedJobs.push(jobSubmitData);
+			   unSubmittedJobs.push(jobSubmitData);
                setTimeout(function(){startSubmittingJobs(results,(counter+1))});
                }
                });
@@ -272,52 +277,46 @@ function removeSubmitedJobs()
 {
 	localDatabaseInstance = openDatabase("PMP Database", "1.0", "PMP Database", 200000);	
 	console.log('Number of submitted jobs '+submittedJobs.length);
+	console.log('Number of unSubmitted jobs '+unSubmittedJobs.length);	
 	for(i = 0;i < submittedJobs.length ; i++)
 	{
 		localDatabaseInstance.transaction(queryRemoveSubmittedJobs(submittedJobs[i],i), function(err){console.log("Error processing SQL: "+err.code+' '+err.message)},function(){ console.log('removed job'); });			
+	}
+    for(i = 0;i < unSubmittedJobs.length ; i++)
+	{
+		localDatabaseInstance.transaction(queryRemoveUnsubmittedJobs(unSubmittedJobs[i],i), function(err){console.log("Error processing SQL: "+err.code+' '+err.message)},function(){ console.log('moved to delivery audit'); });			
 	}	
 
 }
 
 function queryRemoveSubmittedJobs(job,counter) {
     return function(tx) {     
-    	tx.executeSql('DELETE FROM JOBSUBMIT WHERE cont_nr = ? AND cont_inv_nr = ? AND del_terr_cd = ?',[job.cont_nr,job.cont_inv_nr,job.del_terr_cd],function(){console.log('success')},function(err){console.log("Error processing SQL: "+err.code+' '+err.message)});
-    	
-        console.log('DELETE FROM JOBSUBMIT WHERE cont_nr = '+job.cont_nr+' AND cont_inv_nr = '+job.cont_inv_nr+' AND del_terr_cd = '+job.del_terr_cd);
+    	tx.executeSql('DELETE FROM JOBSUBMIT WHERE cont_nr = ? AND cont_inv_nr = ? AND del_terr_cd = ?',[job.cont_nr,job.cont_inv_nr,job.del_terr_cd],function(){console.log('success')},function(err){console.log("Error processing SQL: "+err.code+' '+err.message)});    	
+        
         tx.executeSql('CREATE TABLE IF NOT EXISTS DELIVERY_AUDIT (cont_nr, cont_inv_nr, del_terr_cd, dist_nr ,dist_net_cd, area_cd, ivr_serv_dtime, ivr_user_dtime, batch, DeliveryDay, DeliveryDate )'); 
         tx.executeSql("INSERT INTO DELIVERY_AUDIT ( cont_nr, cont_inv_nr, del_terr_cd, dist_nr, dist_net_cd, area_cd, ivr_serv_dtime, ivr_user_dtime, batch, DeliveryDay, DeliveryDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,?)",
                 [job.cont_nr, job.cont_inv_nr, job.del_terr_cd, job.dist_nr, job.dist_net_cd, job.area_cd, (new Date()).toUTCString(), (new Date()).toUTCString(), job.batch, '', ''],function(){},function(err){console.log("Error processing SQL: "+err.code+' '+err.message)});
-        console.log("INSERT INTO DELIVERY_AUDIT ( cont_nr, cont_inv_nr, del_terr_cd, dist_nr, dist_net_cd, area_cd, ivr_serv_dtime, ivr_user_dtime, batch, DeliveryDay, DeliveryDate) VALUES ("+job.cont_nr+","+job.cont_inv_nr+","+job.del_terr_cd+","+job.dist_nr+","+(new Date()).toUTCString()+","+(new Date()).toUTCString()+","+job.batch+")");
+        
         if(counter == submittedJobs.length-1) {
         	submittedJobs = [];
         	prepareSavedDeliveryChecksSubmit();
         }
     };
 }
-/*
-function queryRemoveSubmittedJobs(tx) {
-    var joinedItems = "";
-	for(i = 0;i < submittedJobs.length ; i++)
-	{
-		/*
-		 * results.rows.item(counter).cont_nr, results.rows.item(counter).cont_inv_nr, results.rows.item(counter).del_terr_cd
-		 */
-        /*
-		db.transaction(makeTx(mid[i]), errorCBQuery);
-		if(i == submittedJobs.length-1) {
-			joinedItems += "'"+submittedJobs[i]+"'";
-		}else{
-			joinedItems += "'"+submittedJobs[i]+"',";
-		}
-		
-	}
-	console.log(joinedItems);
-    sql = "DELETE FROM JOBSUBMIT WHERE cont_nr IN ("+joinedItems+") AND cont_inv_inr IN ("+joinedItems+") AND del_terr_cd IN ("+joinedItems+")";
-	console.log(sql);
-	tx.executeSql(sql);
-    prepareSavedDeliveryChecksSubmit();
+
+function queryRemoveUnsubmittedJobs(job,counter) {
+    return function(tx) {     
+    	
+        tx.executeSql('CREATE TABLE IF NOT EXISTS DELIVERY_AUDIT (cont_nr, cont_inv_nr, del_terr_cd, dist_nr ,dist_net_cd, area_cd, ivr_serv_dtime, ivr_user_dtime, batch, DeliveryDay, DeliveryDate )'); 
+        tx.executeSql("INSERT INTO DELIVERY_AUDIT ( cont_nr, cont_inv_nr, del_terr_cd, dist_nr, dist_net_cd, area_cd, ivr_serv_dtime, ivr_user_dtime, batch, DeliveryDay, DeliveryDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,?)",
+                [job.cont_nr, job.cont_inv_nr, job.del_terr_cd, job.dist_nr, job.dist_net_cd, job.area_cd, (new Date()).toUTCString(), (new Date()).toUTCString(), job.batch, '', ''],function(){},function(err){console.log("Error processing SQL: "+err.code+' '+err.message)});
+        
+        if(counter == unSubmittedJobs.length-1) {
+        	unSubmittedJobs = [];
+        	prepareSavedDeliveryChecksSubmit();
+        }
+    };
 }
-*/
 
 /********  Outstanding jobs Submission from database ************/
 
@@ -379,7 +378,7 @@ function checkNewDataFromServer()
 	if(localStorage.getItem("dist_nr") != null && checkNewDataRequestInProgress == false) {
 	    checkNewDataRequestInProgress = true;
 		$.ajax({
-		  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/GetAnchor?dist_nr="+localStorage.getItem("dist_nr"),
+		  url: live_service_url+"GetAnchor?dist_nr="+localStorage.getItem("dist_nr"),
 		  timeout: 60000 ,
 		  dataType: 'json',	  
 		  success:function(data, textStatus, jqXHR)
@@ -472,7 +471,7 @@ function downloadQueryList() {
 	queryListRequestInProgress = true;
 	if(localStorage.getItem("dist_nr") != null) {
 		$.ajax({
-		  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/GetQueryToPdaByManager?dist_nr="+localStorage.getItem("dist_nr"),
+		  url: live_service_url+"GetQueryToPdaByManager?dist_nr="+localStorage.getItem("dist_nr"),
 		  timeout: 60000 ,
 		  dataType: 'json',
 		  success:function(data, textStatus, jqXHR)
@@ -557,7 +556,7 @@ function downloadOutstandingList()
 	outstandingListRequestInProgress = true;
 	if(localStorage.getItem("dist_nr") != null) {
 		$.ajax({
-		  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/GetToIvrByManager?dist_nr="+localStorage.getItem("dist_nr"),
+		  url: live_service_url+"GetToIvrByManager?dist_nr="+localStorage.getItem("dist_nr"),
 		  timeout: 60000 ,
 		  dataType: 'json',
 		  success:function(data, textStatus, jqXHR)
@@ -623,7 +622,7 @@ function downloadAuditList()
 	auditListRequestInProgress = true;
 	if(localStorage.getItem("dist_nr") != null) {
 		$.ajax({
-		  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/GetFromIvrByManager?dist_nr="+localStorage.getItem("dist_nr"),
+		  url: live_service_url+"GetFromIvrByManager?dist_nr="+localStorage.getItem("dist_nr"),
 		  timeout: 60000 ,
 		  dataType: 'json',
 		  success:function(data, textStatus, jqXHR)
@@ -808,7 +807,7 @@ function login()
 		},1000);	  
 	  }else{
 		  $.ajax({
-			  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/Authenticate",
+			  url: live_service_url+"Authenticate",
 			  type: "POST",
 			  timeout: 60000 ,
 			  data: {userID: $('input[name="username"]').val(), password: $('input[name="password"]').val()},
@@ -993,7 +992,7 @@ function getAuditList()
 	//alert(localStorage.getItem("dist_nr"));
     auditListRequestInProgress = true;	
 	$.ajax({
-	  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/GetFromIvrByManager",
+	  url: live_service_url+"GetFromIvrByManager",
 	  type: "POST",
 	  timeout: 60000 ,
 	  data: {dist_nr: localStorage.getItem("dist_nr")},
@@ -1355,7 +1354,7 @@ function submitDeliveryConfirmation()
 	//alert(JSON.stringify(deliveryCheckConfirmations));	
 	if(deliveryCheckConfirmations.length > 0) {		
 		$.ajax({
-		  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/SubmitDeliveryConfirmation",
+		  url: live_service_url+"SubmitDeliveryConfirmation",
 		  type: "POST",
 		  timeout: 60000 ,
 		  data: deliveryCheckConfirmations.shift(),
@@ -1488,7 +1487,7 @@ function startSubmittingChecks(results,counter)
 		var tempObj = new deliveryCheckObject(results.rows.item(counter).fromPdaId, results.rows.item(counter).imei, results.rows.item(counter).distNr, results.rows.item(counter).distName,results.rows.item(counter).deviceTime,results.rows.item(counter).utcTime,results.rows.item(counter).distNetCode,results.rows.item(counter).contInvNr,results.rows.item(counter).delTerrCd,results.rows.item(counter).latitude,results.rows.item(counter).longitude);
 		//console.log(tempObj);
 		$.ajax({
-		  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/SubmitDeliveryConfirmation",
+		  url: live_service_url+"SubmitDeliveryConfirmation",
 		  type: "POST",
 		  timeout: 60000 ,
 		  data: tempObj,
@@ -1596,7 +1595,7 @@ function getOutstandingJobs()
 	var selectAreaList = new Array();
 	outstandingListRequestInProgress = true;
 	$.ajax({
-	  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/GetToIvrByManager",
+	  url: live_service_url+"GetToIvrByManager",
 	  type: "POST",
 	  timeout: 60000 ,
 	  data: {dist_nr: localStorage.getItem("dist_nr")},
@@ -1604,10 +1603,10 @@ function getOutstandingJobs()
 	  success:function(data, textStatus, jqXHR)
       {
 			//console.log(data.hasOwnProperty("dist_nrr"));from_ivr
-		/*
-		data = {"to_ivr":[{"cont_nr":2203242,"del_terr_cd":90,"cont_inv_nr":377147913,"dist_nr":2203247,"first_nm":"Sergio","last_nm":"Rossi","old_cont_inv_nr":null,"start_dtime":"\/Date(1382360400000)\/","end_dtime":"\/Date(1382446800000)\/","dist_net_cd":"C","batch":179494,"area_cd":290},{"cont_nr":7203242,"del_terr_cd":90,"cont_inv_nr":377147914,"dist_nr":2203247,"first_nm":"Sergio","last_nm":"Rossi","old_cont_inv_nr":null,"start_dtime":"\/Date(1382360400000)\/","end_dtime":"\/Date(1382446800000)\/","dist_net_cd":"C","batch":179494,"area_cd":290},{"cont_nr":7203242,"del_terr_cd":90,"cont_inv_nr":377147915,"dist_nr":2203247,"first_nm":"Sergio","last_nm":"Rossi","old_cont_inv_nr":null,"start_dtime":"\/Date(1382360400000)\/","end_dtime":"\/Date(1382446800000)\/","dist_net_cd":"C","batch":179494,"area_cd":290},{"cont_nr":7203242,"del_terr_cd":90,"cont_inv_nr":377147916,"dist_nr":2203247,"first_nm":"Sergio","last_nm":"Rossi","old_cont_inv_nr":null,"start_dtime":"\/Date(1382360400000)\/","end_dtime":"\/Date(1382446800000)\/","dist_net_cd":"C","batch":179494,"area_cd":290},{"cont_nr":7203242,"del_terr_cd":90,"cont_inv_nr":377147917,"dist_nr":2203247,"first_nm":"Sergio","last_nm":"Rossi","old_cont_inv_nr":null,"start_dtime":"\/Date(1382360400000)\/","end_dtime":"\/Date(1382446800000)\/","dist_net_cd":"C","batch":179494,"area_cd":290}]};
 		
-		*/
+		/*data = {"to_ivr":[{"cont_nr":2203242,"del_terr_cd":90,"cont_inv_nr":377147913,"dist_nr":2203247,"first_nm":"Sergio","last_nm":"Rossi","old_cont_inv_nr":null,"start_dtime":"\/Date(1382360400000)\/","end_dtime":"\/Date(1382446800000)\/","dist_net_cd":"C","batch":179494,"area_cd":290},{"cont_nr":7203242,"del_terr_cd":90,"cont_inv_nr":377147914,"dist_nr":2203247,"first_nm":"Sergio","last_nm":"Rossi","old_cont_inv_nr":null,"start_dtime":"\/Date(1382360400000)\/","end_dtime":"\/Date(1382446800000)\/","dist_net_cd":"C","batch":179494,"area_cd":290},{"cont_nr":7203242,"del_terr_cd":90,"cont_inv_nr":377147915,"dist_nr":2203247,"first_nm":"Sergio","last_nm":"Rossi","old_cont_inv_nr":null,"start_dtime":"\/Date(1382360400000)\/","end_dtime":"\/Date(1382446800000)\/","dist_net_cd":"C","batch":179494,"area_cd":290},{"cont_nr":7203242,"del_terr_cd":90,"cont_inv_nr":377147916,"dist_nr":2203247,"first_nm":"Sergio","last_nm":"Rossi","old_cont_inv_nr":null,"start_dtime":"\/Date(1382360400000)\/","end_dtime":"\/Date(1382446800000)\/","dist_net_cd":"C","batch":179494,"area_cd":290},{"cont_nr":7203242,"del_terr_cd":90,"cont_inv_nr":377147917,"dist_nr":2203247,"first_nm":"Sergio","last_nm":"Rossi","old_cont_inv_nr":null,"start_dtime":"\/Date(1382360400000)\/","end_dtime":"\/Date(1382446800000)\/","dist_net_cd":"C","batch":179494,"area_cd":290}]};*/
+		
+		
 			outstandingListRequestInProgress = false;
 			if(data.to_ivr && data.to_ivr.length)
 			{
@@ -1809,7 +1808,7 @@ function getQueryList()
 	queryList = [];
 	queryListRequestInProgress = true;
 	$.ajax({
-	  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/GetQueryToPdaByManager",
+	  url: live_service_url+"GetQueryToPdaByManager",
 	  type: "POST",
 	  timeout: 60000 ,
 	  data: {dist_nr: localStorage.getItem("dist_nr")},
@@ -2075,7 +2074,7 @@ function submitQueryInformation()
     //alert(JSON.stringify(queryConfirmations));	
 	if(queryConfirmations.length > 0) {		
 		$.ajax({
-		  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/SubmitQuery",
+		  url: live_service_url+"SubmitQuery",
 		  type: "POST",
 		  timeout: 60000 ,
 		  data: queryConfirmations.shift(),
@@ -2191,7 +2190,7 @@ function startSubmittingQueries(results,counter)
 		var tempObj = new queryConfirmationObject(results.rows.item(counter).queryFromPdaId, results.rows.item(counter).queryNr, results.rows.item(counter).deviceDateTime, results.rows.item(counter).utcTime,results.rows.item(counter).reasonTypeDesc,results.rows.item(counter).distComments,results.rows.item(counter).strNr,results.rows.item(counter).strNm,results.rows.item(counter).strTypeCd,results.rows.item(counter).subNm,results.rows.item(counter).pcCd,results.rows.item(counter).latitude,results.rows.item(counter).longitude);
 		//console.log(tempObj);
 		$.ajax({
-		  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/SubmitQuery",
+		  url: live_service_url+"SubmitQuery",
 		  type: "POST",
 		  timeout: 60000 ,
 		  data: tempObj,
@@ -2257,7 +2256,7 @@ function populateReasons()
 
 function downloadReasons() {
 	$.ajax({
-		  url: "https://support.mobiliseit.com/PMP/PDAservice.asmx/GetReasons ",
+		  url: live_service_url+"GetReasons ",
 		  timeout: 60000 ,
 		  async: false,
 		  dataType: "json",
